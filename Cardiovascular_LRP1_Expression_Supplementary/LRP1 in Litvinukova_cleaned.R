@@ -192,3 +192,35 @@ p_box <- ggplot(plot_df, aes(x = cell_type, y = norm_count, fill = cell_type)) +
 
 ggsave("LRP1_pseudobulk_boxplot_adult_heart.png", p_box, width = 9, height = 5, dpi = 300)
 ggsave("LRP1_pseudobulk_boxplot_adult_heart.pdf", p_box, width = 9, height = 5)
+
+
+# =============================================================================
+# 7. Pairwise cell-type-vs-cell-type comparisons for LRP1
+#    results(dds, contrast = c("cell_type", A, B)) gives log2(A / B).
+#    Use RAW factor level names (with spaces, e.g. "Mural cell").
+# =============================================================================
+
+cell_levels <- levels(pb_meta$cell_type)
+pairs       <- combn(cell_levels, 2, simplify = FALSE)
+
+pairwise_results <- lapply(pairs, function(p) {
+  res <- results(dds, contrast = c("cell_type", p[1], p[2]))
+  row <- res[GENE, ]
+  data.frame(
+    cell_type_A = p[1],
+    cell_type_B = p[2],
+    log2FC      = row$log2FoldChange,   # log2(A / B); >0 = higher in A
+    lfcSE       = row$lfcSE,
+    pvalue      = row$pvalue,
+    padj_gene   = row$padj              # BH across all genes (DESeq2 default)
+  )
+}) |> bind_rows()
+
+# For a single pre-specified gene across many pairs, re-adjust across the
+# SET of pairwise tests rather than genome-wide:
+pairwise_results <- pairwise_results %>%
+  mutate(padj_pairwise = p.adjust(pvalue, method = "BH")) %>%
+  arrange(padj_pairwise)
+
+print(pairwise_results)
+write_csv(pairwise_results, "LRP1_pairwise_results_adult_heart.csv")
