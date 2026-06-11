@@ -346,3 +346,28 @@ p_dot_region <- ggplot(dot_df, aes(
 
 ggsave("LRP1_dotplot_region.png", p_dot_region, width = 12, height = 6, dpi = 300)
 ggsave("LRP1_dotplot_region.pdf", p_dot_region, width = 12, height = 6)
+
+#Pairwise Comparison
+
+# All cell-type levels present in the model
+cell_levels <- levels(pb_meta$cell_type)
+
+# Every unique pair (order: A vs B = log2(A / B))
+pairs <- combn(cell_levels, 2, simplify = FALSE)
+
+pairwise_results <- lapply(pairs, function(p) {
+  A <- p[1]; B <- p[2]
+  res <- results(dds, contrast = c("cell_type", A, B))
+  row <- res[GENE, ]
+  data.frame(
+    cell_type_A = A,
+    cell_type_B = B,
+    log2FC      = row$log2FoldChange,   # log2(A / B)
+    lfcSE       = row$lfcSE,
+    pvalue      = row$pvalue,
+    padj_gene   = row$padj              # BH across genes, per contrast
+  )
+}) |> bind_rows()
+
+print(pairwise_results)
+
